@@ -119,4 +119,20 @@ router.post("/login", async (req, res) => {
   }
 });
 
+// Events
+
+router.get("/events", async (req, res) => {
+  try {
+    const collection = db.collection("events");
+    const events = await collection.find({}, { sort: { date: 1 } }).toArray();
+    if (!events) {
+      return null;
+    }
+
+    res.send(events).status(200);
+  } catch (error) {
+    res.status(400);
+  }
+});
+
 export default router;
