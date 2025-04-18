@@ -57,6 +57,26 @@ router.get("/profile-data/:id", async (req, res) => {
   }
 });
 
+//Update Student Profile
+router.patch("/profile-data/:id/update", async (req, res) => {
+  try {
+    const query = { _studentId: req.params.id };
+    const profile = {
+      $set: {
+        ...req.body,
+      },
+    };
+    const collection = db.collection("students");
+    const result = await collection.updateOne(query, profile);
+    if (result.matchedCount === 0) {
+      res.send("User not found").status(404);
+    }
+    res.send(result).status(200);
+  } catch (error) {
+    res.status(500).send("Profile not found");
+  }
+});
+
 //Get Invoice by Year/Semester
 
 router.get("/invoices/:id/:yearLevel/:schoolYear", async (req, res) => {
