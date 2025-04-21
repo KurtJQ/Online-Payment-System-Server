@@ -2,7 +2,6 @@ import express from "express";
 import db from "../db/connection.js";
 import { Int32 } from "mongodb";
 import bcrypt from "bcryptjs";
-import axios from 'axios';
 
 const router = express.Router();
 
@@ -140,8 +139,6 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// Events
-
 router.post("/payment/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
@@ -151,29 +148,23 @@ router.post("/payment/:studentId", async (req, res) => {
       return res.status(400).json({ error: "Student ID, amount, description, and exam period are required" });
     }
 
-    // Find student by studentId
     const student = await db.collection("students").findOne({ _studentId: studentId });
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    // Check if payment already exists for the specified examPeriod
     const existingPaymentForPeriod = await db.collection("payments").findOne({
       studentId: student._studentId,
       examPeriod,
     });
 
     if (existingPaymentForPeriod) {
-      let errorMessage = "";
-      if (examPeriod === "downpayment") {
-        errorMessage = "Downpayment has already been made by this student.";
-      } else {
-        errorMessage = `${examPeriod} payment has already been made by this student.`;
-      }
+      const errorMessage = examPeriod === "downpayment"
+        ? "Downpayment has already been made by this student."
+        : `${examPeriod} payment has already been made by this student.`;
       return res.status(400).json({ error: errorMessage });
     }
 
-    // Set default tuitionFee if not set or zero
     if (!student.tuitionFee || student.tuitionFee === 0) {
       student.tuitionFee = 14000;
     }
@@ -194,16 +185,19 @@ router.post("/payment/:studentId", async (req, res) => {
       semester: student.semester || "",
     };
 
-    // PayMongo API call to create the payment link
     const API_KEY = process.env.PAY_MONGO;
     const encodedKey = Buffer.from(`${API_KEY}:`).toString("base64");
 
-    const response = await axios.post(
-      "https://api.paymongo.com/v1/links",
-      {
+    const paymongoRes = await fetch("https://api.paymongo.com/v1/links", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Basic ${encodedKey}`,
+      },
+      body: JSON.stringify({
         data: {
           attributes: {
-            amount: amount * 100, // cents
+            amount: amount * 100,
             description,
             redirect: {
               success: "http://localhost:3000/payments/success",
@@ -213,18 +207,18 @@ router.post("/payment/:studentId", async (req, res) => {
             metadata,
           },
         },
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Basic ${encodedKey}`,
-        },
-      }
-    );
+      }),
+    });
 
-    const linkData = response.data.data;
+    if (!paymongoRes.ok) {
+      const errorData = await paymongoRes.json();
+      console.error("❌ PayMongo Error:", errorData);
+      return res.status(500).json({ error: "PayMongo payment creation failed", details: errorData });
+    }
 
-    // Save payment to the database
+    const paymongoData = await paymongoRes.json();
+    const linkData = paymongoData.data;
+
     const payment = {
       paymentId: linkData.id,
       amount,
@@ -247,9 +241,8 @@ router.post("/payment/:studentId", async (req, res) => {
 
     await db.collection("payments").insertOne(payment);
 
-    // Update student's payment info using updateOne() method
     await db.collection("students").updateOne(
-      { _studentId: student._studentId }, 
+      { _studentId: student._studentId },
       {
         $push: { payments: payment.paymentId },
         $inc: { totalPaid: amount },
@@ -257,14 +250,13 @@ router.post("/payment/:studentId", async (req, res) => {
       }
     );
 
-    // Respond with success and checkout URL
     return res.status(201).json({
       success: true,
       data: payment,
       checkoutUrl: linkData.attributes.checkout_url,
     });
   } catch (error) {
-    console.error("❌ PayMongo Error:", error.response?.data || error.message);
+    console.error("❌ Server Error:", error);
     return res.status(500).json({ error: error.message || "Payment creation failed" });
   }
 });
