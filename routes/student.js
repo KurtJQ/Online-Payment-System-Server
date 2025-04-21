@@ -139,16 +139,37 @@ router.post("/login", async (req, res) => {
   }
 });
 
+//Events
+router.get("/events", async (req, res) => {
+  try {
+    const collection = db.collection("events");
+    const events = await collection.find({}, { sort: { date: 1 } }).toArray();
+    if (!events) {
+      return null;
+    }
+    res.send(events).status(200);
+  } catch (error) {
+    res.status(404);
+  }
+});
+
 router.post("/payment/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
     const { amount, description, examPeriod } = req.body;
 
     if (!studentId || !amount || !description || !examPeriod) {
-      return res.status(400).json({ error: "Student ID, amount, description, and exam period are required" });
+      return res
+        .status(400)
+        .json({
+          error:
+            "Student ID, amount, description, and exam period are required",
+        });
     }
 
-    const student = await db.collection("students").findOne({ _studentId: studentId });
+    const student = await db
+      .collection("students")
+      .findOne({ _studentId: studentId });
     if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
@@ -159,9 +180,10 @@ router.post("/payment/:studentId", async (req, res) => {
     });
 
     if (existingPaymentForPeriod) {
-      const errorMessage = examPeriod === "downpayment"
-        ? "Downpayment has already been made by this student."
-        : `${examPeriod} payment has already been made by this student.`;
+      const errorMessage =
+        examPeriod === "downpayment"
+          ? "Downpayment has already been made by this student."
+          : `${examPeriod} payment has already been made by this student.`;
       return res.status(400).json({ error: errorMessage });
     }
 
@@ -213,7 +235,12 @@ router.post("/payment/:studentId", async (req, res) => {
     if (!paymongoRes.ok) {
       const errorData = await paymongoRes.json();
       console.error("❌ PayMongo Error:", errorData);
-      return res.status(500).json({ error: "PayMongo payment creation failed", details: errorData });
+      return res
+        .status(500)
+        .json({
+          error: "PayMongo payment creation failed",
+          details: errorData,
+        });
     }
 
     const paymongoData = await paymongoRes.json();
@@ -257,9 +284,10 @@ router.post("/payment/:studentId", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Server Error:", error);
-    return res.status(500).json({ error: error.message || "Payment creation failed" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Payment creation failed" });
   }
 });
-
 
 export default router;
