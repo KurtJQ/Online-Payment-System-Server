@@ -2,6 +2,7 @@ import express from "express";
 import db from "../db/connection.js";
 import { Int32 } from "mongodb";
 import bcrypt from "bcryptjs";
+import axios from 'axios';
 
 const router = express.Router();
 
@@ -141,18 +142,132 @@ router.post("/login", async (req, res) => {
 
 // Events
 
-router.get("/events", async (req, res) => {
+router.post("/payment/:studentId", async (req, res) => {
   try {
-    const collection = db.collection("events");
-    const events = await collection.find({}, { sort: { date: 1 } }).toArray();
-    if (!events) {
-      return null;
+    const { studentId } = req.params;
+    const { amount, description, examPeriod } = req.body;
+
+    if (!studentId || !amount || !description || !examPeriod) {
+      return res.status(400).json({ error: "Student ID, amount, description, and exam period are required" });
     }
 
-    res.send(events).status(200);
+    // Find student by studentId
+    const student = await db.collection("students").findOne({ _studentId: studentId });
+    if (!student) {
+      return res.status(404).json({ error: "Student not found" });
+    }
+
+    // Check if payment already exists for the specified examPeriod
+    const existingPaymentForPeriod = await db.collection("payments").findOne({
+      studentId: student._studentId,
+      examPeriod,
+    });
+
+    if (existingPaymentForPeriod) {
+      let errorMessage = "";
+      if (examPeriod === "downpayment") {
+        errorMessage = "Downpayment has already been made by this student.";
+      } else {
+        errorMessage = `${examPeriod} payment has already been made by this student.`;
+      }
+      return res.status(400).json({ error: errorMessage });
+    }
+
+    // Set default tuitionFee if not set or zero
+    if (!student.tuitionFee || student.tuitionFee === 0) {
+      student.tuitionFee = 14000;
+    }
+
+    const billingDetails = {
+      name: `${student.fname} ${student.mname || ""} ${student.lname}`,
+      email: student.email,
+      phone: student.mobile,
+    };
+
+    const metadata = {
+      studentId: student._studentId,
+      email: student.email,
+      course: student.course || "",
+      education: student.education || "",
+      yearLevel: student.yearLevel || "",
+      schoolYear: student.schoolYear || "",
+      semester: student.semester || "",
+    };
+
+    // PayMongo API call to create the payment link
+    const API_KEY = process.env.PAY_MONGO;
+    const encodedKey = Buffer.from(`${API_KEY}:`).toString("base64");
+
+    const response = await axios.post(
+      "https://api.paymongo.com/v1/links",
+      {
+        data: {
+          attributes: {
+            amount: amount * 100, // cents
+            description,
+            redirect: {
+              success: "http://localhost:3000/payments/success",
+              failure: "http://localhost:3000/payments/failure",
+            },
+            billing: billingDetails,
+            metadata,
+          },
+        },
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${encodedKey}`,
+        },
+      }
+    );
+
+    const linkData = response.data.data;
+
+    // Save payment to the database
+    const payment = {
+      paymentId: linkData.id,
+      amount,
+      referenceNumber: linkData.attributes.reference_number,
+      description,
+      billingDetails,
+      studentRef: student._id,
+      studentId: student._studentId,
+      fname: student.fname,
+      mname: student.mname,
+      lname: student.lname,
+      course: student.course,
+      education: student.education,
+      yearLevel: student.yearLevel,
+      schoolYear: student.schoolYear,
+      semester: student.semester,
+      examPeriod,
+      createdAt: new Date(),
+    };
+
+    await db.collection("payments").insertOne(payment);
+
+    // Update student's payment info using updateOne() method
+    await db.collection("students").updateOne(
+      { _studentId: student._studentId }, 
+      {
+        $push: { payments: payment.paymentId },
+        $inc: { totalPaid: amount },
+        $set: { balance: student.tuitionFee - (student.totalPaid + amount) },
+      }
+    );
+
+    // Respond with success and checkout URL
+    return res.status(201).json({
+      success: true,
+      data: payment,
+      checkoutUrl: linkData.attributes.checkout_url,
+    });
   } catch (error) {
-    res.status(400);
+    console.error("❌ PayMongo Error:", error.response?.data || error.message);
+    return res.status(500).json({ error: error.message || "Payment creation failed" });
   }
 });
+
 
 export default router;
