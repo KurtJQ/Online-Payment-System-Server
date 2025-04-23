@@ -159,12 +159,9 @@ router.post("/payment/:studentId", async (req, res) => {
     const { amount, description, examPeriod } = req.body;
 
     if (!studentId || !amount || !description || !examPeriod) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "Student ID, amount, description, and exam period are required",
-        });
+      return res.status(400).json({
+        error: "Student ID, amount, description, and exam period are required",
+      });
     }
 
     const student = await db
@@ -235,12 +232,10 @@ router.post("/payment/:studentId", async (req, res) => {
     if (!paymongoRes.ok) {
       const errorData = await paymongoRes.json();
       console.error("❌ PayMongo Error:", errorData);
-      return res
-        .status(500)
-        .json({
-          error: "PayMongo payment creation failed",
-          details: errorData,
-        });
+      return res.status(500).json({
+        error: "PayMongo payment creation failed",
+        details: errorData,
+      });
     }
 
     const paymongoData = await paymongoRes.json();
@@ -272,7 +267,7 @@ router.post("/payment/:studentId", async (req, res) => {
       { _studentId: student._studentId },
       {
         $push: { payments: payment.paymentId },
-        $inc: { totalPaid: amount },
+        $inc: { totalPaid: parseInt(amount) },
         $set: { balance: student.tuitionFee - (student.totalPaid + amount) },
       }
     );
