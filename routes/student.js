@@ -156,9 +156,9 @@ router.get("/events", async (req, res) => {
 router.post("/payment/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { amount, description, examPeriod } = req.body;
+    const { description, examPeriod } = req.body;
 
-    if (!studentId || !amount || !description || !examPeriod) {
+    if (!studentId || !description || !examPeriod) {
       return res.status(400).json({
         error: "Student ID, amount, description, and exam period are required",
       });
@@ -179,7 +179,7 @@ router.post("/payment/:studentId", async (req, res) => {
     if (existingPaymentForPeriod) {
       const errorMessage =
         examPeriod === "downpayment"
-          ? "Downpayment has already been made by this student."
+          ? "Downpayment has already been paid"
           : `${examPeriod} payment has already been made by this student.`;
       return res.status(400).json({ error: errorMessage });
     }
@@ -216,7 +216,7 @@ router.post("/payment/:studentId", async (req, res) => {
       body: JSON.stringify({
         data: {
           attributes: {
-            amount: amount * 100,
+            amount: examPeriod === "downpayment" ? 2000 : 1500 * 100,
             description,
             redirect: {
               success: "http://localhost:3000/payments/success",
@@ -238,45 +238,45 @@ router.post("/payment/:studentId", async (req, res) => {
       });
     }
 
-    const paymongoData = await paymongoRes.json();
-    const linkData = paymongoData.data;
+    // const paymongoData = await paymongoRes.json();
+    // const linkData = paymongoData.data;
 
-    const payment = {
-      paymentId: linkData.id,
-      amount,
-      referenceNumber: linkData.attributes.reference_number,
-      description,
-      billingDetails,
-      studentRef: student._id,
-      studentId: student._studentId,
-      fname: student.fname,
-      mname: student.mname,
-      lname: student.lname,
-      course: student.course,
-      education: student.education,
-      yearLevel: student.yearLevel,
-      schoolYear: student.schoolYear,
-      semester: student.semester,
-      examPeriod,
-      createdAt: new Date(),
-    };
+    // const payment = {
+    //   paymentId: linkData.id,
+    //   amount,
+    //   referenceNumber: linkData.attributes.reference_number,
+    //   description,
+    //   billingDetails,
+    //   studentRef: student._id,
+    //   studentId: student._studentId,
+    //   fname: student.fname,
+    //   mname: student.mname,
+    //   lname: student.lname,
+    //   course: student.course,
+    //   education: student.education,
+    //   yearLevel: student.yearLevel,
+    //   schoolYear: student.schoolYear,
+    //   semester: student.semester,
+    //   examPeriod,
+    //   createdAt: new Date(),
+    // };
 
-    await db.collection("payments").insertOne(payment);
+    // await db.collection("payments").insertOne(payment);
 
-    await db.collection("students").updateOne(
-      { _studentId: student._studentId },
-      {
-        $push: { payments: payment.paymentId },
-        $inc: { totalPaid: parseInt(amount) },
-        $set: { balance: student.tuitionFee - (student.totalPaid + amount) },
-      }
-    );
+    // await db.collection("students").updateOne(
+    //   { _studentId: student._studentId },
+    //   {
+    //     $push: { payments: payment.paymentId },
+    //     $inc: { totalPaid: parseInt(amount) },
+    //     $set: { balance: student.tuitionFee - (student.totalPaid + amount) },
+    //   }
+    // );
 
-    return res.status(201).json({
-      success: true,
-      data: payment,
-      checkoutUrl: linkData.attributes.checkout_url,
-    });
+    // return res.status(201).json({
+    //   success: true,
+    //   data: payment,
+    //   checkoutUrl: linkData.attributes.checkout_url,
+    // });
   } catch (error) {
     console.error("❌ Server Error:", error);
     return res
