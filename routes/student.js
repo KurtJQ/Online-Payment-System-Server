@@ -153,14 +153,15 @@ router.get("/events", async (req, res) => {
   }
 });
 
+//
 router.post("/payment/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { description, examPeriod } = req.body;
+    const { examPeriod } = req.body;
 
-    if (!studentId || !description || !examPeriod) {
+    if (!studentId || examPeriod.length === 0) {
       return res.status(400).json({
-        error: "Student ID, amount, description, and exam period are required",
+        error: "Select an Exam period.",
       });
     }
 
@@ -188,7 +189,7 @@ router.post("/payment/:studentId", async (req, res) => {
       student.tuitionFee = 14000;
     }
 
-    const billingDetails = {
+    const billing = {
       name: `${student.fname} ${student.mname || ""} ${student.lname}`,
       email: student.email,
       phone: student.mobile,
@@ -196,7 +197,6 @@ router.post("/payment/:studentId", async (req, res) => {
 
     const metadata = {
       studentId: student._studentId,
-      email: student.email,
       course: student.course || "",
       education: student.education || "",
       yearLevel: student.yearLevel || "",
@@ -207,39 +207,52 @@ router.post("/payment/:studentId", async (req, res) => {
     const API_KEY = process.env.PAY_MONGO;
     const encodedKey = Buffer.from(`${API_KEY}:`).toString("base64");
 
-    const paymongoRes = await fetch("https://api.paymongo.com/v1/links", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Basic ${encodedKey}`,
-      },
-      body: JSON.stringify({
-        data: {
-          attributes: {
-            amount: examPeriod === "downpayment" ? 2000 : 1500 * 100,
-            description,
-            redirect: {
-              success: "http://localhost:3000/payments/success",
-              failure: "http://localhost:3000/payments/failure",
-            },
-            billing: billingDetails,
-            metadata,
-          },
+    const paymongoRes = await fetch(
+      "https://api.paymongo.com/v1/checkout_sessions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Basic ${encodedKey}`,
         },
-      }),
-    });
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              billing,
+              line_items: examPeriod.map((item) => ({
+                amount: item === "Downpayment" ? 2000 * 100 : 1500 * 100,
+                currency: "PHP",
+                description: "Tuition payment for " + item,
+                name: item,
+                quantity: 1,
+              })),
+              payment_method_types: ["paymaya", "gcash", "card"],
+              send_email_receipt: true,
+              show_line_items: true,
+              reference_number: `ref-${student._studentId}-${Date.now()}`,
+              metadata: { ...metadata },
+            },
+          },
+        }),
+      }
+    );
 
     if (!paymongoRes.ok) {
       const errorData = await paymongoRes.json();
       console.error("❌ PayMongo Error:", errorData);
       return res.status(500).json({
-        error: "PayMongo payment creation failed",
+        error: "PayMongo payment intent creation failed",
         details: errorData,
       });
     }
 
-    // const paymongoData = await paymongoRes.json();
-    // const linkData = paymongoData.data;
+    const paymongoData = await paymongoRes.json();
+    res
+      .json({
+        success: true,
+        checkoutUrl: paymongoData.data.attributes.checkout_url,
+      })
+      .status(201);
 
     // const payment = {
     //   paymentId: linkData.id,
@@ -274,14 +287,12 @@ router.post("/payment/:studentId", async (req, res) => {
 
     // return res.status(201).json({
     //   success: true,
-    //   data: payment,
+    //   //   data: payment,
     //   checkoutUrl: linkData.attributes.checkout_url,
     // });
   } catch (error) {
     console.error("❌ Server Error:", error);
-    return res
-      .status(500)
-      .json({ error: error.message || "Payment creation failed" });
+    return res.status(500).json({ error: error.message || "Payment failed" });
   }
 });
 
