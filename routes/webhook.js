@@ -27,7 +27,7 @@ router.post("/payment/new", async (req, res) => {
       mname: studentSearch.mname,
       lname: studentSearch.lname,
       course: data?.attributes.metadata.course,
-      semeseter: data?.attributes.metadata.semester,
+      semester: data?.attributes.metadata.semester,
       education: data?.attributes.metadata.education,
       yearLevel: data?.attributes.metadata.yearLevel,
       schoolYear: data?.attributes.metadata.schoolYear,
