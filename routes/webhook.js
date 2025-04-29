@@ -33,7 +33,7 @@ router.post("/payment/new", async (req, res) => {
       schoolYear: data?.attributes.metadata.schoolYear,
       examPeriod: data?.attributes.line_items[0].name,
       status: data?.attributes.payments[0].attributes.status,
-      createdAt: new Date(data.attributes.created_at).toISOString(),
+      createdAt: new Date(data.attributes.created_at * 1000).toISOString(),
     };
     const paymentCollection = db.collection("payments");
     const result = await paymentCollection.insertOne(newPayment);
