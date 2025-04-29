@@ -35,10 +35,10 @@ router.post("/payment/new", async (req, res) => {
       status: data?.attributes.payments[0].attributes.status,
       createdAt: new Date(data.attributes.created_at).toISOString(),
     };
-    // const paymentCollection = db.collection("payments");
-    // const result = await collection.insertOne(newPayment);
+    const paymentCollection = db.collection("payments");
+    const result = await paymentCollection.insertOne(newPayment);
 
-    res.status(201).send({ newPayment });
+    res.status(201).send({ result });
   } catch (error) {
     res.status(400).send("ERROR: " + error);
   }
