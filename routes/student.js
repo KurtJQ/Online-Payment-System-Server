@@ -159,7 +159,7 @@ router.post("/payment/:studentId", async (req, res) => {
     const { studentId } = req.params;
     const { examPeriod } = req.body;
 
-    if (!studentId || examPeriod.length === 0) {
+    if (!studentId || !examPeriod) {
       return res.status(400).json({
         error: "Select an Exam period.",
       });
@@ -202,6 +202,7 @@ router.post("/payment/:studentId", async (req, res) => {
       yearLevel: student.yearLevel || "",
       schoolYear: student.schoolYear || "",
       semester: student.semester || "",
+      examPeriod: examPeriod,
     };
 
     const API_KEY = process.env.PAY_MONGO;
@@ -219,13 +220,16 @@ router.post("/payment/:studentId", async (req, res) => {
           data: {
             attributes: {
               billing,
-              line_items: examPeriod.map((item) => ({
-                amount: item === "Downpayment" ? 2000 * 100 : 1500 * 100,
-                currency: "PHP",
-                description: "Tuition payment for " + item,
-                name: item,
-                quantity: 1,
-              })),
+              line_items: [
+                {
+                  amount:
+                    examPeriod === "Downpayment" ? 2000 * 100 : 1500 * 100,
+                  currency: "PHP",
+                  description: "Tuition payment for " + examPeriod,
+                  name: examPeriod,
+                  quantity: 1,
+                },
+              ],
               payment_method_types: ["paymaya", "gcash", "card"],
               send_email_receipt: true,
               show_line_items: true,
