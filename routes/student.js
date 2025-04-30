@@ -178,6 +178,9 @@ router.post("/payment/:studentId", async (req, res) => {
 
     const existingPaymentForPeriod = await db.collection("payments").findOne({
       studentId: student._studentId,
+      yearLevel: student.yearLevel,
+      schoolYear: student.schoolYear,
+      semester: student.semester,
       examPeriod,
     });
 
