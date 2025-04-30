@@ -79,20 +79,24 @@ router.patch("/profile-data/:id/update", async (req, res) => {
 
 //Get Invoice by Year/Semester
 
-router.get("/invoices/:id/:yearLevel/:schoolYear", async (req, res) => {
-  try {
-    const collection = db.collection("payments");
-    const query = {
-      studentId: req.params.id,
-      yearLevel: req.params.yearLevel,
-      schoolYear: req.params.schoolYear,
-    };
-    const invoice = await collection.find(query).toArray();
-    res.send(invoice).status(200);
-  } catch (error) {
-    res.status(404).send("Error retrieving invoices");
+router.get(
+  "/invoices/:id/:yearLevel/:schoolYear/:semester",
+  async (req, res) => {
+    try {
+      const collection = db.collection("payments");
+      const query = {
+        studentId: req.params.id,
+        yearLevel: req.params.yearLevel,
+        schoolYear: req.params.schoolYear,
+        semester: req.params.semester,
+      };
+      const invoice = await collection.find(query).toArray();
+      res.send(invoice).status(200);
+    } catch (error) {
+      res.status(404).send("Error retrieving invoices");
+    }
   }
-});
+);
 
 //Get Invoice
 router.get("/invoice/:id", async (req, res) => {
