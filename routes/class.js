@@ -63,7 +63,7 @@ router.patch("/add", async (req, res) => {
 
     const classes = await sectionCollection.updateOne(
       { _id: classID },
-      { $addToSet: { students: _studentId } }
+      { $addToSet: { students: studentCheck._id } }
     );
     const student = await studentCollection.updateOne(
       { _studentId: _studentId },
