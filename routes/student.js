@@ -1,7 +1,9 @@
 import express from "express";
 import db from "../db/connection.js";
-import { Int32 } from "mongodb";
+import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
+import { ObjectId } from "mongodb";
 
 const router = express.Router();
 
@@ -37,11 +39,63 @@ router.post("/new", async (req, res) => {
     const newStudent = {
       _studentId: newStudentNumber,
       ...req.body,
+      verified: false,
     };
     let result = await collection.insertOne(newStudent);
-    res.send(result).status(201);
+
+    const token = jwt.sign(
+      { userId: result.insertedId },
+      process.env.SECRET_KEY,
+      { expiresIn: "5m" }
+    );
+
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      host: "smtp-relay.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.TRANSPORTER_EMAIL,
+        pass: process.env.TRANSPORTER_PASSWORD,
+      },
+    });
+
+    const link = `${process.env.FRONTEND}/verify?token=${token}`;
+    const message = await transporter.sendMail({
+      to: req.body.email,
+      subject: "Verify your email",
+      html: `Click <a href="${link}">here</a> to verify your email, or use this link instead </br> ${link}`,
+    });
+
+    res
+      .status(201)
+      .json({ message: "A Verification link was sent to your email" });
   } catch (e) {
-    res.status(500).send("Error Registering");
+    console.error(e);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
+});
+
+//Verify student
+router.get("/verify", async (req, res) => {
+  const { token } = req.query;
+  try {
+    const payload = jwt.verify(token, process.env.SECRET_KEY);
+    const collection = db.collection("students");
+    const studentCheck = await collection.findOne({
+      _id: new ObjectId(String(payload.userId)),
+    });
+    if (!studentCheck) {
+      return res.status(404).json({ message: "Student not Found" });
+    }
+    await collection.findOneAndUpdate(
+      { _id: new ObjectId(String(payload.userId)) },
+      { $set: { verified: true } }
+    );
+    res.status(200).json({ message: "Verification Complete" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json("Internal Server Error");
   }
 });
 
@@ -124,6 +178,10 @@ router.post("/login", async (req, res) => {
       result = null;
       res.status(200).json(result);
       return;
+    }
+    if (!user.verified) {
+      result = null;
+      return res.status(404).json(result);
     }
     const validation = await bcrypt.compare(password, user.password);
     if (!validation) {
