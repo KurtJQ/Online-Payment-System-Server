@@ -53,7 +53,7 @@ router.patch("/add", async (req, res) => {
     if (!studentCheck) {
       return res.status(404).json({ error: "Student not Found" });
     }
-    if (classCheck.students.includes(studentCheck._studentId)) {
+    if (classCheck.students.includes(studentCheck._id)) {
       return res.status(400).json({ error: "Student is already in class" });
     }
 
