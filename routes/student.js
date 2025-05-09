@@ -159,7 +159,6 @@ router.get(
         schoolYear: req.params.schoolYear,
         semester: req.params.semester,
       };
-      console.log(query);
       const invoice = await collection.find(query).toArray();
       res.send(invoice).status(200);
     } catch (error) {
