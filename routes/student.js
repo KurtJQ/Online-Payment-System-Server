@@ -3,7 +3,7 @@ import db from "../db/connection.js";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
-import { ObjectId } from "mongodb";
+import { Int32, ObjectId } from "mongodb";
 
 const router = express.Router();
 
@@ -39,6 +39,11 @@ router.post("/new", async (req, res) => {
     const newStudent = {
       _studentId: newStudentNumber,
       ...req.body,
+      birthdate: new Date(req.body.birthdate),
+      registrationDate: new Date(req.body.registrationDate),
+      yearLevel: new Int32(parseInt(req.body.yearLevel)),
+      createdAt: new Date(req.body.createdAt),
+      updatedAt: new Date(req.body.updatedAt),
       verified: false,
     };
     let result = await collection.insertOne(newStudent);
