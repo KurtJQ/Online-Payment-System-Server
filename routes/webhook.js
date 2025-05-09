@@ -1,5 +1,6 @@
 import express from "express";
 import db from "../db/connection.js";
+import { Int32 } from "mongodb";
 
 const router = express.Router();
 
@@ -30,7 +31,7 @@ router.post("/payment/new", async (req, res) => {
       semester: data?.attributes.metadata.semester,
       education: data?.attributes.metadata.education,
       yearLevel: data?.attributes.metadata.yearLevel,
-      schoolYear: data?.attributes.metadata.schoolYear,
+      schoolYear: new Int32(parseInt(data?.attributes.metadata.schoolYear)),
       examPeriod: data?.attributes.line_items[0].name,
       status: data?.attributes.payments[0].attributes.status,
       createdAt: new Date(data.attributes.created_at * 1000).toISOString(),
