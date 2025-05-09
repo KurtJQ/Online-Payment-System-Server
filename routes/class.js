@@ -57,7 +57,7 @@ router.patch("/add", async (req, res) => {
       return res.status(400).json({ error: "Student is already in class" });
     }
 
-    if (classCheck.students.length >= 0) {
+    if (classCheck.students.length >= 50) {
       return res.status(400).json({ error: "Class is Full" });
     }
 
