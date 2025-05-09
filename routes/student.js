@@ -15,8 +15,10 @@ router.get("/", async (req, res) => {
 
 //New Student Registration
 router.post("/new", async (req, res) => {
+  const { course, yearLevel, semester } = req.body;
   try {
     const collection = db.collection("students");
+    const subjectCollection = db.collection("curriculums");
     const currentYear = new Date().getFullYear();
     const lastStudent = await collection
       .find(
@@ -36,9 +38,17 @@ router.post("/new", async (req, res) => {
       nextNumber = String(lastNumber + 1).padStart(4, "0");
     }
     const newStudentNumber = `${currentYear}-${nextNumber}`;
+
+    const subjects = await subjectCollection.findOne({
+      course,
+      yearLevel,
+      semester,
+    });
+
     const newStudent = {
       _studentId: newStudentNumber,
       ...req.body,
+      subjects: subjects.subjects,
       birthdate: new Date(req.body.birthdate),
       registrationDate: new Date(req.body.registrationDate),
       yearLevel: new Int32(parseInt(req.body.yearLevel)),
