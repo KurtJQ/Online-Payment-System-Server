@@ -155,10 +155,11 @@ router.get(
       const collection = db.collection("payments");
       const query = {
         studentId: req.params.id,
-        yearLevel: req.params.yearLevel,
+        yearLevel: parseInt(req.params.yearLevel),
         schoolYear: req.params.schoolYear,
         semester: req.params.semester,
       };
+      console.log(query);
       const invoice = await collection.find(query).toArray();
       res.send(invoice).status(200);
     } catch (error) {
