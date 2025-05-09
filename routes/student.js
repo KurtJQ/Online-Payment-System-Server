@@ -270,6 +270,26 @@ router.post("/payment/:studentId", async (req, res) => {
       examPeriod: examPeriod,
     };
 
+    let payment = 0;
+    if (examPeriod === "Remaining") {
+      const query = {
+        studentId: student._studentId,
+        yearLevel: student.yearLevel,
+        schoolYear: student.schoolYear,
+        semester: student.semester,
+      };
+
+      const payments = await db.collection("payments").find(query).toArray();
+      const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const remaining = 14000 - totalPaid;
+      if (remaining <= 0) {
+        return res.status(400).json({ error: "No remaining balance to pay" });
+      }
+      payment = remaining * 100;
+    } else {
+      payment = examPeriod === "Downpayment" ? 2000 * 100 : 1500 * 100;
+    }
+
     const API_KEY = process.env.PAY_MONGO;
     const encodedKey = Buffer.from(`${API_KEY}:`).toString("base64");
 
@@ -287,8 +307,7 @@ router.post("/payment/:studentId", async (req, res) => {
               billing,
               line_items: [
                 {
-                  amount:
-                    examPeriod === "Downpayment" ? 2000 * 100 : 1500 * 100,
+                  amount: payment,
                   currency: "PHP",
                   description: "Tuition payment for " + examPeriod,
                   name: examPeriod,
@@ -310,7 +329,7 @@ router.post("/payment/:studentId", async (req, res) => {
       const errorData = await paymongoRes.json();
       console.error("❌ PayMongo Error:", errorData);
       return res.status(500).json({
-        error: "PayMongo payment intent creation failed",
+        error: "PayMongo checkout creation failed",
         details: errorData,
       });
     }
@@ -322,43 +341,6 @@ router.post("/payment/:studentId", async (req, res) => {
         checkoutUrl: paymongoData.data.attributes.checkout_url,
       })
       .status(201);
-
-    // const payment = {
-    //   paymentId: linkData.id,
-    //   amount,
-    //   referenceNumber: linkData.attributes.reference_number,
-    //   description,
-    //   billingDetails,
-    //   studentRef: student._id,
-    //   studentId: student._studentId,
-    //   fname: student.fname,
-    //   mname: student.mname,
-    //   lname: student.lname,
-    //   course: student.course,
-    //   education: student.education,
-    //   yearLevel: student.yearLevel,
-    //   schoolYear: student.schoolYear,
-    //   semester: student.semester,
-    //   examPeriod,
-    //   createdAt: new Date(),
-    // };
-
-    // await db.collection("payments").insertOne(payment);
-
-    // await db.collection("students").updateOne(
-    //   { _studentId: student._studentId },
-    //   {
-    //     $push: { payments: payment.paymentId },
-    //     $inc: { totalPaid: parseInt(amount) },
-    //     $set: { balance: student.tuitionFee - (student.totalPaid + amount) },
-    //   }
-    // );
-
-    // return res.status(201).json({
-    //   success: true,
-    //   //   data: payment,
-    //   checkoutUrl: linkData.attributes.checkout_url,
-    // });
   } catch (error) {
     console.error("❌ Server Error:", error);
     return res.status(500).json({ error: error.message || "Payment failed" });
