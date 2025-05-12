@@ -188,6 +188,43 @@ router.get("/verify", async (req, res) => {
   }
 });
 
+//Reset Password
+router.patch("/resetpassword", async (req, res) => {
+  const { user, currentPassword, newPassword, confirmNewPassword } = req.body;
+  if (!user || !currentPassword || !newPassword || !confirmNewPassword) {
+    return res.status(404).json({ message: "Fields cannot be left empty" });
+  }
+  if (newPassword !== confirmNewPassword) {
+    return res.status(400).json({ message: "Passwords do not match" });
+  }
+  const studentCollection = db.collection("students");
+  const student = await studentCollection.findOne({ _studentId: user.id });
+  if (!student) {
+    return res.status(404).json({ message: "Student not Found" });
+  }
+  const passwordValidation = await bcrypt.compare(
+    currentPassword,
+    student.password
+  );
+  if (!passwordValidation) {
+    return res.status(400).json({ message: "Credentials is incorrect" });
+  }
+  const hashPassword = await bcrypt.hash(newPassword, 10);
+  try {
+    const passwordUpdate = await studentCollection.updateOne(
+      { _studentId: user.id },
+      { $set: { password: hashPassword } }
+    );
+    if (passwordUpdate.matchedCount === 0) {
+      return res.status(404).json({ message: "Student not Found" });
+    }
+    res.status(200).json({ message: "Password changed successfully" });
+  } catch (error) {
+    console.error(error);
+    res.status(500);
+  }
+});
+
 // Forgot Password
 router.post("/forgotpassword", async (req, res) => {
   const { email } = req.body;
@@ -200,17 +237,17 @@ router.post("/forgotpassword", async (req, res) => {
     if (!studentCheck) {
       return res.status(404).json({ message: "Student not Found" });
     }
-    // const token = jwt.sign({ _id: studentCheck._id }, process.env.SECRET_KEY, {
-    //   expiresIn: "5m",
-    // });
-    // const link = process.env.FRONTEND + `/forgotpassword/new?token=${token}`;
+    const token = jwt.sign({ _id: studentCheck._id }, process.env.SECRET_KEY, {
+      expiresIn: "5m",
+    });
+    const link = process.env.FRONTEND + `/forgotpassword/new?token=${token}`;
 
-    // await transporter.sendMail({
-    //   from: "St Clare Online Enrollment",
-    //   to: email,
-    //   subject: "Forgot Password Request",
-    //   html: `Click <a href=${link}>here</a> to proceed to the next step`,
-    // });
+    await transporter.sendMail({
+      from: "St Clare Online Enrollment",
+      to: email,
+      subject: "Forgot Password Request",
+      html: `Click <a href=${link}>here</a> to proceed to the next step`,
+    });
     res.status(200).json({ message: "A link was sent to the email" });
   } catch (error) {
     console.error(error);
