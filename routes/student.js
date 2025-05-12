@@ -6,6 +6,16 @@ import nodemailer from "nodemailer";
 import { Int32, ObjectId } from "mongodb";
 
 const router = express.Router();
+const transporter = nodemailer.createTransport({
+  service: "Gmail",
+  host: "smtp-relay.gmail.com",
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.TRANSPORTER_EMAIL,
+    pass: process.env.TRANSPORTER_PASSWORD,
+  },
+});
 
 router.get("/", async (req, res) => {
   let collection = db.collection("students");
@@ -64,22 +74,86 @@ router.post("/new", async (req, res) => {
       { expiresIn: "5m" }
     );
 
-    const transporter = nodemailer.createTransport({
-      service: "Gmail",
-      host: "smtp-relay.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
-        user: process.env.TRANSPORTER_EMAIL,
-        pass: process.env.TRANSPORTER_PASSWORD,
-      },
-    });
-
     const link = `${process.env.FRONTEND}/verify?token=${token}`;
     const message = await transporter.sendMail({
+      from: "St Clare Online Enrollment",
       to: req.body.email,
       subject: "Verify your email",
-      html: `Click <a href="${link}">here</a> to verify your email, or use this link instead </br> ${link}`,
+      html: `
+      <html>
+        <head>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+              
+            }
+            .container {
+              background-color: rgba(255, 255, 255, 0.55);
+              max-width: 600px;
+              margin: 60px auto;
+              padding: 40px 30px;
+              border-radius: 12px;
+              box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+              text-align: center;
+            }
+            .logo {
+              width: 90px;
+              height: 90px;
+              border-radius: 50%;
+              background-color: #fff;
+              box-shadow: 0 0 8px rgba(0,0,0,0.15);
+              object-fit: contain;
+              margin-bottom: 20px;
+            }
+            h3 {
+              color:rgb(0, 0, 0);
+              margin-bottom: 10px;
+              font-size: 24px;
+            }
+            p {
+              color: rgb(0, 0, 0);
+              font-size: 16px;
+              line-height: 1.6;
+              margin: 10px 0;
+            }
+            a.button {
+              display: inline-block;
+              padding: 12px 24px;
+              margin-top: 20px;
+              background-color: #4CAF50;
+              color: #fff;
+              font-weight: bold;
+              text-decoration: none;
+              border-radius: 6px;
+              font-size: 16px;
+              box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            a.button:hover {
+              background-color: #45a049;
+            }
+            .footer {
+              margin-top: 30px;
+              font-size: 12px;
+              color: #888;
+            }
+          </style>
+        </head>
+        <body style="background: url('https://online-enrollment-system-admin.vercel.app/background.webp')no-repeat center center; background-size: cover;">
+          <div class="container">
+            <img src="https://online-enrollment-system-admin.vercel.app/icon.webp" alt="St. Clare College Logo" class="logo"/>
+            <h3>Welcome to St. Clare College!</h3>
+            <p>Please verify your email address by clicking the button below:</p>
+            <a href="${link}" class="button">Verify Email</a>
+            <p>This link will expire in 5 minutes.</p>
+            <div class="footer">
+              <p>If you did not request this, please ignore this message.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
     });
 
     res
@@ -111,6 +185,80 @@ router.get("/verify", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json("Internal Server Error");
+  }
+});
+
+// Forgot Password
+router.post("/forgotpassword", async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(404).json({ message: "Please enter Email Address" });
+  }
+  const studentCollection = db.collection("students");
+  try {
+    const studentCheck = await studentCollection.findOne({ email: email });
+    if (!studentCheck) {
+      return res.status(404).json({ message: "Student not Found" });
+    }
+    // const token = jwt.sign({ _id: studentCheck._id }, process.env.SECRET_KEY, {
+    //   expiresIn: "5m",
+    // });
+    // const link = process.env.FRONTEND + `/forgotpassword/new?token=${token}`;
+
+    // await transporter.sendMail({
+    //   from: "St Clare Online Enrollment",
+    //   to: email,
+    //   subject: "Forgot Password Request",
+    //   html: `Click <a href=${link}>here</a> to proceed to the next step`,
+    // });
+    res.status(200).json({ message: "A link was sent to the email" });
+  } catch (error) {
+    console.error(error);
+    res.status(500);
+  }
+});
+
+//New Password
+router.patch("/newPassword", async (req, res) => {
+  const { newPassword } = req.body;
+  const { token } = req.query;
+  if (!newPassword || !token) {
+    res.status(404).json({ message: "Fields are empty" });
+  }
+  const payload = jwt.verify(token, process.env.SECRET_KEY);
+  if (!payload) {
+    res.status(400).json({ message: "Token Expired" });
+  }
+  try {
+    const studentCollection = db.collection("students");
+    const studentCheck = await studentCollection.findOne({
+      _id: new ObjectId(String(payload._id)),
+    });
+    if (!studentCheck) {
+      return res.status(404).json("Student not Found");
+    }
+    const passwordValidation = await bcrypt.compare(
+      newPassword,
+      studentCheck.password
+    );
+    if (passwordValidation) {
+      return res
+        .status(400)
+        .json({ message: "Password cannot be the same as the last" });
+    }
+
+    const hashPassword = await bcrypt.hash(newPassword, 10);
+    const student = await studentCollection.updateOne(
+      { _id: studentCheck._id },
+      { $set: { password: hashPassword } }
+    );
+    if (student.matchedCount === 0) {
+      return res.status(404).json({ message: "Student not Found" });
+    }
+    res.status(200).json({ message: "Password has been updated" });
+  } catch (error) {
+    console.error(error);
+    res.status(500);
   }
 });
 
