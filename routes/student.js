@@ -128,21 +128,39 @@ router.get("/profile-data/:id", async (req, res) => {
 
 //Update Student Profile
 router.patch("/profile-data/:id/update", async (req, res) => {
+  const { auth, data } = req.body;
   try {
+    const collection = db.collection("students");
+    const emailCheck = await collection.findOne({ email: auth.email });
+    if (!emailCheck) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Invalid Credentials" });
+    }
+    const passwordValidation = await bcrypt.compare(
+      auth.password,
+      emailCheck.password
+    );
+    if (!passwordValidation) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Invalid Credentials" });
+    }
     const query = { _studentId: req.params.id };
     const profile = {
       $set: {
-        ...req.body,
+        ...data,
       },
     };
-    const collection = db.collection("students");
+
     const result = await collection.updateOne(query, profile);
     if (result.matchedCount === 0) {
-      res.send("User not found").status(404);
+      res.status(404).json({ success: false, message: "Student not Found" });
     }
-    res.send(result).status(200);
+    res.status(200).json(result);
   } catch (error) {
-    res.status(500).send("Profile not found");
+    console.error(error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
