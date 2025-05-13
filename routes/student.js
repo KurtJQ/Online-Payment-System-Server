@@ -243,7 +243,7 @@ router.post("/forgotpassword", async (req, res) => {
     const link = process.env.FRONTEND + `/forgotpassword/new?token=${token}`;
 
     await transporter.sendMail({
-      from: "St Clare Online Enrollment",
+      from: `St Clare Online Enrollment <${process.env.TRANSPORTER_EMAIL}>`,
       to: email,
       subject: "Forgot Password Request",
       html: `Click <a href=${link}>here</a> to proceed to the next step`,
