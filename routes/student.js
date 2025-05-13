@@ -76,7 +76,7 @@ router.post("/new", async (req, res) => {
 
     const link = `${process.env.FRONTEND}/verify?token=${token}`;
     const message = await transporter.sendMail({
-      from: "St Clare Online Enrollment",
+      from: `St Clare Online Enrollment <${process.env.TRANSPORTER_EMAIL}>`,
       to: req.body.email,
       subject: "Verify your email",
       html: `
