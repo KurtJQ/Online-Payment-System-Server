@@ -36,14 +36,26 @@ router.get("/invoice/:id", async (req, res) => {
   }
 });
 
+//Get payment Settings
+router.get("/settings", async (req, res) => {
+  try {
+    const settings = await db.collection("payment-settings").find({}).toArray();
+    res.status(200).json(settings);
+  } catch (error) {
+    console.error(error);
+    res.status(500);
+  }
+});
+
+// Make Payment
 router.post("/payment/:studentId", async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { examPeriod } = req.body;
+    const { examPeriod, amount } = req.body;
 
-    if (!studentId || !examPeriod) {
+    if (!studentId || !examPeriod || !amount) {
       return res.status(400).json({
-        error: "Select an Exam period.",
+        error: "Fields cannot be empty.",
       });
     }
 
@@ -54,24 +66,55 @@ router.post("/payment/:studentId", async (req, res) => {
       return res.status(404).json({ error: "Student not found" });
     }
 
-    const existingPaymentForPeriod = await invoiceCollection.findOne({
-      studentId: student._studentId,
-      yearLevel: student.yearLevel,
-      schoolYear: student.schoolYear,
-      semester: student.semester,
-      examPeriod,
-    });
-
-    if (existingPaymentForPeriod) {
-      const errorMessage =
-        examPeriod === "downpayment"
-          ? "Downpayment has already been paid"
-          : `${examPeriod} payment has already been made by this student.`;
-      return res.status(400).json({ error: errorMessage });
-    }
-
-    if (!student.tuitionFee || student.tuitionFee === 0) {
-      student.tuitionFee = 14000;
+    if (examPeriod === "Remaining") {
+      const paymentSettings = await db
+        .collection("payment-settings")
+        .find({})
+        .toArray();
+      const maxPayment = paymentSettings.reduce(
+        (sum, items) => sum + Number(items.amount),
+        0
+      );
+      const remainingBalance = await invoiceCollection
+        .find({
+          studentId: student._studentId,
+          yearLevel: student.yearLevel,
+          schoolYear: student.schoolYear,
+          semester: student.semester,
+        })
+        .toArray();
+      const currentlyPaid = remainingBalance.reduce(
+        (sum, items) => sum + Number(items.amount),
+        0
+      );
+      const totalBalance = maxPayment - currentlyPaid;
+      if (Number(amount) > totalBalance) {
+        return res.status(400).json({ error: "Amount exceeded the balance" });
+      }
+    } else {
+      const paymentSetting = await db
+        .collection("payment-settings")
+        .findOne({ examPeriod: examPeriod });
+      if (!paymentSetting) {
+        return res.status(400).json({ error: "Invalid exam period." });
+      }
+      const currentTotalPaid = await invoiceCollection
+        .find({
+          studentId: student._studentId,
+          yearLevel: student.yearLevel,
+          schoolYear: student.schoolYear,
+          semester: student.semester,
+          examPeriod,
+        })
+        .toArray();
+      const currentlyPaid = currentTotalPaid.reduce(
+        (sum, items) => sum + Number(items.amount),
+        0
+      );
+      const totalBalance = Number(paymentSetting.amount) - currentlyPaid;
+      if (Number(amount) > totalBalance) {
+        return res.status(400).json({ error: "Amount exceeded the balance" });
+      }
     }
 
     const billing = {
@@ -90,26 +133,6 @@ router.post("/payment/:studentId", async (req, res) => {
       examPeriod: examPeriod,
     };
 
-    let payment = 0;
-    if (examPeriod === "Remaining") {
-      const query = {
-        studentId: student._studentId,
-        yearLevel: student.yearLevel,
-        schoolYear: student.schoolYear,
-        semester: student.semester,
-      };
-
-      const payments = await invoiceCollection.find(query).toArray();
-      const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const remaining = 14000 - totalPaid;
-      if (remaining <= 0) {
-        return res.status(400).json({ error: "No remaining balance to pay" });
-      }
-      payment = remaining * 100;
-    } else {
-      payment = examPeriod === "Downpayment" ? 2000 * 100 : 1500 * 100;
-    }
-
     const API_KEY = process.env.PAY_MONGO;
     const encodedKey = Buffer.from(`${API_KEY}:`).toString("base64");
 
@@ -127,7 +150,7 @@ router.post("/payment/:studentId", async (req, res) => {
               billing,
               line_items: [
                 {
-                  amount: payment,
+                  amount: Number(amount) * 100,
                   currency: "PHP",
                   description: "Tuition payment for " + examPeriod,
                   name: examPeriod,
