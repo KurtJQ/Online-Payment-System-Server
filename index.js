@@ -4,6 +4,7 @@ import student from "./routes/student.js";
 import webhooks from "./routes/webhook.js";
 import classes from "./routes/class.js";
 import subject from "./routes/subject.js";
+import payments from "./routes/payment.js";
 import documents from "./routes/documents.js";
 import "dotenv/config";
 
@@ -15,6 +16,7 @@ app.use("/api/student", student);
 app.use("/webhooks", webhooks);
 app.use("/api/class", classes);
 app.use("/api/subject", subject);
+app.use("/api/payment", payments);
 app.use("/api/documents", documents);
 
 app.listen(process.env.PORT, () => {
