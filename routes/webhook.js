@@ -34,6 +34,7 @@ router.post("/payment/new", async (req, res) => {
       schoolYear: data?.attributes.metadata.schoolYear,
       examPeriod: data?.attributes.line_items[0].name,
       status: data?.attributes.payments[0].attributes.status,
+      paymentMethod: data?.attributes?.payments?.[0]?.attributes?.source?.type,
       createdAt: new Date(data.attributes.created_at * 1000),
     };
     const paymentCollection = db.collection("payments");
