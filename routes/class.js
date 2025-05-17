@@ -47,6 +47,9 @@ router.patch("/add", async (req, res) => {
     if (!classCheck) {
       return res.status(404).json({ error: "Class not Found" });
     }
+    if (classCheck.students.length >= classCheck.maxLimit) {
+      return res.status(400).json({ error: "Class is at full capacity" });
+    }
     const studentCheck = await studentCollection.findOne({
       _studentId: _studentId,
     });
