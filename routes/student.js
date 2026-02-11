@@ -35,7 +35,7 @@ router.post("/new", async (req, res) => {
         {
           _studentId: new RegExp(`^${currentYear}-`),
         },
-        { projection: { _studentId: 1 } }
+        { projection: { _studentId: 1 } },
       )
       .sort({ _studentId: -1 })
       .limit(1)
@@ -43,7 +43,7 @@ router.post("/new", async (req, res) => {
 
     let nextNumber = "0001";
 
-    if (lastStudent) {
+    if (lastStudent.length > 0) {
       const lastNumber = parseInt(lastStudent[0]._studentId.split("-")[1], 10);
       nextNumber = String(lastNumber + 1).padStart(4, "0");
     }
@@ -71,7 +71,7 @@ router.post("/new", async (req, res) => {
     const token = jwt.sign(
       { userId: result.insertedId },
       process.env.SECRET_KEY,
-      { expiresIn: "5m" }
+      { expiresIn: "5m" },
     );
 
     const link = `${process.env.FRONTEND}/verify?token=${token}`;
@@ -179,7 +179,7 @@ router.get("/verify", async (req, res) => {
     }
     await collection.findOneAndUpdate(
       { _id: new ObjectId(String(payload.userId)) },
-      { $set: { verified: true } }
+      { $set: { verified: true } },
     );
     res.status(200).json({ message: "Verification Complete" });
   } catch (error) {
@@ -204,7 +204,7 @@ router.patch("/resetpassword", async (req, res) => {
   }
   const passwordValidation = await bcrypt.compare(
     currentPassword,
-    student.password
+    student.password,
   );
   if (!passwordValidation) {
     return res.status(400).json({ message: "Credentials is incorrect" });
@@ -213,7 +213,7 @@ router.patch("/resetpassword", async (req, res) => {
   try {
     const passwordUpdate = await studentCollection.updateOne(
       { _studentId: user.id },
-      { $set: { password: hashPassword } }
+      { $set: { password: hashPassword } },
     );
     if (passwordUpdate.matchedCount === 0) {
       return res.status(404).json({ message: "Student not Found" });
@@ -276,7 +276,7 @@ router.patch("/newPassword", async (req, res) => {
     }
     const passwordValidation = await bcrypt.compare(
       newPassword,
-      studentCheck.password
+      studentCheck.password,
     );
     if (passwordValidation) {
       return res
@@ -287,7 +287,7 @@ router.patch("/newPassword", async (req, res) => {
     const hashPassword = await bcrypt.hash(newPassword, 10);
     const student = await studentCollection.updateOne(
       { _id: studentCheck._id },
-      { $set: { password: hashPassword } }
+      { $set: { password: hashPassword } },
     );
     if (student.matchedCount === 0) {
       return res.status(404).json({ message: "Student not Found" });
@@ -324,7 +324,7 @@ router.patch("/profile-data/:id/update", async (req, res) => {
     }
     const passwordValidation = await bcrypt.compare(
       auth.password,
-      emailCheck.password
+      emailCheck.password,
     );
     if (!passwordValidation) {
       return res
